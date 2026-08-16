@@ -3,7 +3,6 @@ import pandas as pd
 import pickle
 import streamlit as st
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 # Page configuration
 st.set_page_config(
@@ -289,7 +288,7 @@ def get_survival_probability(risk_score):
 # =========================================
 
 st.title("👶 Child Survival Probability Predictor")
-st.markdown("### Enter child and mother characteristics to predict survival probability")
+st.markdown("### Enter child and mother health and health care, and household characteristics to predict survival probability")
 
 # Check if model loaded
 if model is None or scaler is None:
@@ -341,16 +340,9 @@ with col2:
     
     **Risk Classification (Two Groups):**
     
-    🟢 **LOW RISK**: Risk score ≤ 0.3
-       - Good prognosis
-       - Standard care recommended
-       
-    🔴 **HIGH RISK**: Risk score > 0.3
-       - Poorer prognosis
-       - Close monitoring required
-       
-    ---
-    **Threshold:** 0.3 (based on model calibration)
+    🟢 **LOW RISK**: Risk score ≤ median
+    
+    🔴 **HIGH RISK**: Risk score > median
     """)
 
 # =========================================
@@ -367,8 +359,12 @@ if predict_button:
     if risk_score is not None:
         time_points, survival_probs = get_survival_probability(risk_score)
         
-        # Risk level (HIGH vs LOW only)
-        if risk_score > 0.3:  # Threshold for High Risk
+        # Median risk score from training (fixed value from your model)
+        # Based on your logs: median_risk_train = 0.0002
+        MEDIAN_RISK = 0.0002
+        
+        # Risk level based on median
+        if risk_score > MEDIAN_RISK:
             risk_level = "🔴 HIGH RISK"
             risk_color = "red"
             risk_badge_color = "#e74c3c"
@@ -379,7 +375,7 @@ if predict_button:
             risk_badge_color = "#27ae60"
             risk_bg_color = "#e8f8f5"
         
-        # Display metrics with colored risk badge
+        # Display metrics
         col1, col2, col3 = st.columns([1, 1, 1])
 
         with col1:
@@ -407,19 +403,19 @@ if predict_button:
         })
         st.dataframe(df_surv, use_container_width=True, hide_index=True)
         
-        # Survival curve
+        # Survival curve (simple version without risk zone)
         st.markdown("#### Survival Curve")
         fig, ax = plt.subplots(figsize=(10, 5))
         
         # Plot survival curve
-        ax.plot(time_points, survival_probs, 'b-o', linewidth=2, markersize=8, label='Survival Probability')
+        ax.plot(time_points, survival_probs, 'b-o', linewidth=2.5, markersize=8, label='Survival Probability')
         ax.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5, label='50% Threshold')
         ax.fill_between(time_points, survival_probs, alpha=0.2, color='blue')
         
         # Styling
         ax.set_xlabel('Time (months)', fontsize=12)
         ax.set_ylabel('Survival Probability', fontsize=12)
-        ax.set_title('Kaplan-Meier Style Survival Curve', fontsize=14, fontweight='bold')
+        ax.set_title('Survival Curve', fontsize=14, fontweight='bold')
         ax.set_ylim([0, 1.05])
         ax.set_xlim([0, 65])
         ax.grid(True, alpha=0.3)
@@ -435,24 +431,22 @@ if predict_button:
         plt.close()
         
         # =========================================
-        # RISK GROUP CLASSIFICATION
+        # RISK GROUP CLASSIFICATION (Simplified)
         # =========================================
         
         st.markdown("#### 📊 Risk Group Classification")
         
-        # Calculate risk group
-        if risk_score > 0.3:
+        # Calculate risk group based on median
+        if risk_score > MEDIAN_RISK:
             risk_group = "HIGH RISK"
             risk_color = "#e74c3c"
             risk_icon = "🔴"
-            recommendation = "⚠️ This child is classified as HIGH RISK. Close monitoring and early intervention are strongly recommended."
         else:
             risk_group = "LOW RISK"
             risk_color = "#27ae60"
             risk_icon = "🟢"
-            recommendation = "✅ This child is classified as LOW RISK. Continue standard care and routine monitoring."
         
-        # Display risk group with large visual indicator
+        # Display risk group with visual indicator
         col1, col2 = st.columns([1, 2])
         with col1:
             st.markdown(f"""
@@ -469,119 +463,14 @@ if predict_button:
             st.markdown(f"""
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; height: 100%;">
                 <h5 style="color: {risk_color};">Risk Group: {risk_group}</h5>
-                <p style="font-size: 1rem;">{recommendation}</p>
                 <hr>
                 <p style="font-size: 0.9rem; color: #555;">
                     <strong>Risk Score:</strong> {risk_score:.4f}<br>
-                    <strong>Threshold:</strong> Score > 0.3 = High Risk
+                    <strong>Median Risk Score (Threshold):</strong> {MEDIAN_RISK:.4f}<br>
+                    <strong>Classification:</strong> Risk score {'>' if risk_score > MEDIAN_RISK else '≤'} median
                 </p>
             </div>
             """, unsafe_allow_html=True)
         
-        # Survival comparison with risk zone
-        st.markdown("#### 📈 Survival Curve with Risk Zone")
-        
-        fig2, ax2 = plt.subplots(figsize=(10, 5))
-        
-        # Current patient survival
-        ax2.plot(time_points, survival_probs, 'o-', linewidth=2.5, markersize=8, 
-                 label=f'Current Patient ({risk_group})', color=risk_badge_color)
-        
-        # 50% threshold line
-        ax2.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5, label='50% Threshold')
-        
-        # Add shaded regions for risk interpretation
-        if risk_score > 0.3:
-            # High risk - show warning area
-            ax2.fill_between(time_points, 0, survival_probs, alpha=0.2, color='red', 
-                             label='High Risk Zone')
-        else:
-            # Low risk - show safe area
-            ax2.fill_between(time_points, survival_probs, 1, alpha=0.2, color='green', 
-                             label='Low Risk Zone')
-        
-        ax2.set_xlabel('Time (months)', fontsize=12)
-        ax2.set_ylabel('Survival Probability', fontsize=12)
-        ax2.set_title(f'Survival Curve - {risk_group} Patient', fontsize=14, fontweight='bold')
-        ax2.set_ylim([0, 1.05])
-        ax2.set_xlim([0, 65])
-        ax2.grid(True, alpha=0.3)
-        ax2.legend(loc='lower left')
-        
-        st.pyplot(fig2)
-        plt.close()
-        
-        # =========================================
-        # INTERPRETATION
-        # =========================================
-        
-        st.markdown("#### 📝 Clinical Interpretation")
-        
-        if risk_score > 0.3:
-            st.warning(f"""
-            **🔴 HIGH RISK Patient**
-            
-            | Metric | Value |
-            |--------|-------|
-            | Risk Score | **{risk_score:.4f}** (> 0.3 threshold) |
-            | 12-month survival | **{survival_probs[2]:.1%}** |
-            | 24-month survival | **{survival_probs[3]:.1%}** |
-            | 60-month survival | **{survival_probs[6]:.1%}** |
-            
-            **📌 Recommendation:** This child requires **close monitoring** and **early intervention**.
-            Consider additional clinical assessment and follow-up.
-            """)
-        else:
-            st.success(f"""
-            **🟢 LOW RISK Patient**
-            
-            | Metric | Value |
-            |--------|-------|
-            | Risk Score | **{risk_score:.4f}** (≤ 0.3 threshold) |
-            | 12-month survival | **{survival_probs[2]:.1%}** |
-            | 24-month survival | **{survival_probs[3]:.1%}** |
-            | 60-month survival | **{survival_probs[6]:.1%}** |
-            
-            **📌 Recommendation:** This child has a **favorable prognosis**.
-            Continue standard care and routine monitoring.
-            """)
-        
-        # =========================================
-        # RISK FACTORS SUMMARY
-        # =========================================
-        
-        st.markdown("#### 🔍 Key Risk Factors")
-        
-        # Identify which features are "active" (dummy = 1)
-        feature_df = create_feature_vector(form_data)
-        active_features = []
-        
-        for col in feature_df.columns:
-            if feature_df[col].values[0] == 1:
-                # Get human-readable label
-                for var_key, mapping in DUMMY_MAPPING.items():
-                    for option, dummy_dict in mapping.items():
-                        if col in dummy_dict:
-                            active_features.append(f"• {VARIABLE_LABELS.get(var_key, var_key)}: {option}")
-                            break
-        
-        if active_features:
-            # Show up to 10 most important risk factors
-            st.markdown("**Selected characteristics that may influence risk:**")
-            for feat in active_features[:10]:
-                st.markdown(feat)
-            if len(active_features) > 10:
-                st.markdown(f"*... and {len(active_features) - 10} more factors*")
-        else:
-            st.markdown("*All factors are at reference levels (baseline).*")
-        
     else:
         st.error("⚠️ Prediction failed. Please check model files.")
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: gray; font-size: 0.8rem;'>
-    Developed with ❤️ using Streamlit • FS-SVM Model • Univariate MI Feature Selection
-</div>
-""", unsafe_allow_html=True)
