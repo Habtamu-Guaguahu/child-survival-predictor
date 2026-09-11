@@ -3,6 +3,7 @@ import pandas as pd
 import pickle
 import streamlit as st
 import matplotlib.pyplot as plt
+from sksurv.linear_model import CoxPHSurvivalAnalysis
 
 # Page configuration
 st.set_page_config(
@@ -29,6 +30,25 @@ def load_model():
         return None, None
 
 model, scaler = load_model()
+
+# =========================================
+# LOAD RECALIBRATION MODEL (Cox model fit on FS-SVM risk scores)
+# — this is the SAME model used to produce the calibrated survival
+#   curves reported in the manuscript (IBS = 0.0687, slope = 2.2875)
+# =========================================
+
+@st.cache_resource
+def load_recalibration_model():
+    """Load the Cox recalibration model for calibrated survival probabilities"""
+    try:
+        with open('models/recalibration_model.pkl', 'rb') as f:
+            recal = pickle.load(f)
+        return recal
+    except FileNotFoundError:
+        st.warning("⚠️ Recalibration model not found — using fallback survival approximation.")
+        return None
+
+recal_model = load_recalibration_model()
 
 # =========================================
 # DEFINE FEATURES AND MAPPING
@@ -275,12 +295,23 @@ def predict_risk(form_data):
     return risk_score
 
 def get_survival_probability(risk_score):
-    """Calculate survival probabilities"""
+    """Calculate survival probabilities using the Cox recalibration model.
+    This is the SAME model used to produce the calibrated survival curves
+    reported in the manuscript (IBS = 0.0687, calibration slope = 2.2875)."""
     time_points = [1, 6, 12, 24, 36, 48, 60]
-    survival = []
-    for t in time_points:
-        prob = np.exp(-np.exp(risk_score * 0.5) * t * 0.008)
-        survival.append(max(0, min(1, prob)))
+    
+    if recal_model is None:
+        # Fallback approximation if recalibration model is missing
+        survival = []
+        for t in time_points:
+            prob = np.exp(-np.exp(risk_score * 0.5) * t * 0.008)
+            survival.append(max(0, min(1, prob)))
+        return time_points, survival
+    
+    # Use the calibrated Cox recalibration model (matches manuscript)
+    pi_df = pd.DataFrame({'prognostic_index': [risk_score]})
+    surv_func = recal_model.predict_survival_function(pi_df)[0]
+    survival = [float(surv_func(t)) for t in time_points]
     return time_points, survival
 
 # =========================================
@@ -335,6 +366,7 @@ with col2:
     - **FS-SVM Model** (Fast Survival Support Vector Machine)
     - **45 Features** selected via Univariate Mutual Information
     - **6,168 training samples** (7.7% event rate)
+    - **Calibrated via Cox recalibration** (IBS = 0.0687)
     
     ---
     
