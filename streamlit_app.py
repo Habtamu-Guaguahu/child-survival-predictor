@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # Page configuration
 st.set_page_config(
-    page_title="Child Survival Predictor",
+    page_title="Under-five Mortality Risk Predictor",
     page_icon="👶",
     layout="wide"
 )
@@ -287,7 +287,7 @@ def get_survival_probability(risk_score):
 # STREAMLIT UI
 # =========================================
 
-st.title("👶 Child Survival Probability Predictor")
+st.title("👶 Under-five Mortality Risk Predictor")
 st.markdown("### Enter child and mother health and health care, and household characteristics to predict survival probability")
 
 # Check if model loaded
@@ -300,7 +300,7 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     st.markdown("---")
-    st.subheader("📋 Patient Information")
+    st.subheader("📋 Children Information")
     
     # Create form
     form_data = {}
@@ -324,13 +324,13 @@ with col1:
                 form_data[var_key] = st.selectbox(label, options, key=var_key)
         st.markdown("---")
     
-    predict_button = st.button("🔮 Predict Survival Probability", type="primary", use_container_width=True)
+    predict_button = st.button("🔮 Predict Mortality Risk", type="primary", use_container_width=True)
 
 with col2:
     st.markdown("---")
     st.subheader("ℹ️ About")
     st.markdown("""
-    This tool predicts the survival probability of a child based on:
+    This tool predicts the mortality risk of a child based on:
     
     - **FS-SVM Model** (Fast Survival Support Vector Machine)
     - **45 Features** selected via Univariate Mutual Information
@@ -393,7 +393,7 @@ if predict_button:
 
         with col3:
             event_prob = 1 - survival_probs[2]  # 12-month event probability
-            st.metric("12-Month Event Risk", f"{event_prob:.1%}")
+            st.metric("12-Month Mortality Risk", f"{event_prob:.1%}")
         
         # Survival table
         st.markdown("#### Survival Probability by Time")
@@ -466,7 +466,6 @@ if predict_button:
                 <hr>
                 <p style="font-size: 0.9rem; color: #555;">
                     <strong>Risk Score:</strong> {risk_score:.4f}<br>
-                    <strong>Median Risk Score (Threshold):</strong> {MEDIAN_RISK:.4f}<br>
                     <strong>Classification:</strong> Risk score {'>' if risk_score > MEDIAN_RISK else '≤'} median
                 </p>
             </div>
