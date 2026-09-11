@@ -303,7 +303,7 @@ def get_survival_probability(risk_score):
     the maximum follow-up time in the training data (59 months here), so we
     restrict time_points to stay strictly inside that domain.
     """
-    time_points = [1, 6, 12, 24, 36, 48]   # <-- removed 60 (out of range)
+    time_points = [1, 6, 12, 24, 36, 48, 59]   # <-- removed 60 (out of range)
 
     if recal_model is None:
         # Fallback approximation if recalibration model is missing
