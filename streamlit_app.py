@@ -297,9 +297,14 @@ def predict_risk(form_data):
 def get_survival_probability(risk_score):
     """Calculate survival probabilities using the Cox recalibration model.
     This is the SAME model used to produce the calibrated survival curves
-    reported in the manuscript (IBS = 0.0687, calibration slope = 2.2875)."""
-    time_points = [1, 6, 12, 24, 36, 48, 60]
-    
+    reported in the manuscript (IBS = 0.0687, calibration slope = 2.2875).
+
+    NOTE: the recalibration model's survival function is only defined up to
+    the maximum follow-up time in the training data (59 months here), so we
+    restrict time_points to stay strictly inside that domain.
+    """
+    time_points = [1, 6, 12, 24, 36, 48]   # <-- removed 60 (out of range)
+
     if recal_model is None:
         # Fallback approximation if recalibration model is missing
         survival = []
@@ -307,11 +312,17 @@ def get_survival_probability(risk_score):
             prob = np.exp(-np.exp(risk_score * 0.5) * t * 0.008)
             survival.append(max(0, min(1, prob)))
         return time_points, survival
-    
+
     # Use the calibrated Cox recalibration model (matches manuscript)
     pi_df = pd.DataFrame({'prognostic_index': [risk_score]})
     surv_func = recal_model.predict_survival_function(pi_df)[0]
-    survival = [float(surv_func(t)) for t in time_points]
+
+    # Guard: only evaluate within the model's valid domain
+    upper_domain = float(surv_func.domain[1])
+    survival = []
+    for t in time_points:
+        t_clipped = min(t, upper_domain - 1e-6)   # stay strictly inside domain
+        survival.append(float(surv_func(t_clipped)))
     return time_points, survival
 
 # =========================================
